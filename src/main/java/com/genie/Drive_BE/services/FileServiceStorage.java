@@ -2,51 +2,53 @@ package com.genie.Drive_BE.services;
 
 import com.genie.Drive_BE.dto.StorageInfoDTO;
 import com.genie.Drive_BE.entity.FileEntity;
+import com.genie.Drive_BE.entity.UserEntity;
 import com.genie.Drive_BE.repo.FileRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class FileServiceStorage {
 
-    // 15 GB storage cap (changeable via application.properties)
-    @Value("${storage.limit-bytes:16106127360}")
-    private long storageLimitBytes;
-
     @Value("${file.upload-dir}")
     private String uploadDir;
 
-    private final FileRepository fileRepository;
+    @Value("${storage.limit-bytes:16106127360}")
+    private long storageLimitBytes;
 
-    public FileServiceStorage(FileRepository fileRepository) {
+    private final FileRepository fileRepository;
+    private final AuthService    authService;
+
+    public FileServiceStorage(FileRepository fileRepository, AuthService authService) {
         this.fileRepository = fileRepository;
+        this.authService    = authService;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  UPLOAD
-    // ════════════════════════════════════════════════════════════════════════
+    // ── Get current logged-in user (throws if not logged in) ─────────────
+    private UserEntity currentUser() {
+        return authService.getLoggedInUser();
+    }
 
+    // ── Upload ────────────────────────────────────────────────────────────
     public String saveFile(MultipartFile file, Long parentFolderId) throws IOException {
-        Path uploadPath = Paths.get(uploadDir);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
+        UserEntity user = currentUser();
+
+        // Store each user's files in their own subdirectory
+        Path userDir = Paths.get(uploadDir, "user_" + user.getId());
+        if (!Files.exists(userDir)) Files.createDirectories(userDir);
 
         String fileName = file.getOriginalFilename();
-        Path   filePath = uploadPath.resolve(fileName);
+        Path   filePath = userDir.resolve(fileName);
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
         FileEntity entity = new FileEntity();
+        entity.setUserId(user.getId());         // ← bind to this user
         entity.setName(fileName);
         entity.setPath(filePath.toString());
         entity.setSize(file.getSize());
@@ -58,178 +60,104 @@ public class FileServiceStorage {
         return "File uploaded successfully!";
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  MY DRIVE — files in a folder (root if parentFolderId is null)
-    // ════════════════════════════════════════════════════════════════════════
-
+    // ── My Drive list ─────────────────────────────────────────────────────
     public List<FileEntity> getFilesInFolder(Long parentFolderId) {
-        if (parentFolderId == null) {
-            return fileRepository.findByParentFolderIdIsNullAndTrashedFalseAndSpamFalse();
-        }
-        return fileRepository.findByParentFolderIdAndTrashedFalseAndSpamFalse(parentFolderId);
+        Long uid = currentUser().getId();
+        if (parentFolderId == null)
+            return fileRepository.findByUserIdAndParentFolderIdIsNullAndTrashedFalseAndSpamFalse(uid);
+        return fileRepository.findByUserIdAndParentFolderIdAndTrashedFalseAndSpamFalse(uid, parentFolderId);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  RECENT — mark a file as opened, then fetch the 50 most recently opened
-    // ════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Call this whenever a user opens / downloads a file.
-     * Updates lastOpenedAt so it shows up in Recent.
-     */
-    public FileEntity markAsOpened(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setLastOpenedAt(LocalDateTime.now());
-        return fileRepository.save(entity);
+    // ── Download / mark opened ────────────────────────────────────────────
+    public FileEntity markAsOpened(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setLastOpenedAt(LocalDateTime.now());
+        return fileRepository.save(f);
     }
 
+    // ── Recent ────────────────────────────────────────────────────────────
     public List<FileEntity> getRecentFiles() {
         return fileRepository
-                .findTop50ByLastOpenedAtIsNotNullAndTrashedFalseOrderByLastOpenedAtDesc();
+                .findTop50ByUserIdAndLastOpenedAtIsNotNullAndTrashedFalseOrderByLastOpenedAtDesc(currentUser().getId());
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  STARRED
-    // ════════════════════════════════════════════════════════════════════════
-
-    public FileEntity toggleStar(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setStarred(!entity.isStarred());
-        return fileRepository.save(entity);
+    // ── Starred ───────────────────────────────────────────────────────────
+    public FileEntity toggleStar(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setStarred(!f.isStarred());
+        return fileRepository.save(f);
     }
 
     public List<FileEntity> getStarredFiles() {
-        return fileRepository.findByStarredTrueAndTrashedFalseAndSpamFalse();
+        return fileRepository.findByUserIdAndStarredTrueAndTrashedFalseAndSpamFalse(currentUser().getId());
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  BIN (soft-delete / restore / permanent delete)
-    // ════════════════════════════════════════════════════════════════════════
-
-    /** Move a file to the Bin (soft delete). */
-    public FileEntity moveToTrash(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setTrashed(true);
-        entity.setTrashedAt(LocalDateTime.now());
-        return fileRepository.save(entity);
+    // ── Bin ───────────────────────────────────────────────────────────────
+    public FileEntity moveToTrash(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setTrashed(true);
+        f.setTrashedAt(LocalDateTime.now());
+        return fileRepository.save(f);
     }
 
-    /** Restore a file from the Bin back to My Drive. */
-    public FileEntity restoreFromTrash(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setTrashed(false);
-        entity.setTrashedAt(null);
-        return fileRepository.save(entity);
+    public FileEntity restoreFromTrash(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setTrashed(false);
+        f.setTrashedAt(null);
+        return fileRepository.save(f);
     }
 
-    /** Permanently delete: remove from disk AND database. */
-    public void deletePermanently(Long id) throws IOException {
-        FileEntity entity = getFileById(id);
-        Path path = Paths.get(entity.getPath());
-        Files.deleteIfExists(path);
-        fileRepository.deleteById(id);
+    public void deletePermanently(Long fileId) throws IOException {
+        FileEntity f = getFileByIdSecure(fileId);
+        Files.deleteIfExists(Paths.get(f.getPath()));
+        fileRepository.delete(f);
     }
 
-    /** Empty the entire bin. */
     public void emptyBin() throws IOException {
-        List<FileEntity> trashed = fileRepository.findByTrashedTrue();
-        for (FileEntity entity : trashed) {
-            Path path = Paths.get(entity.getPath());
-            Files.deleteIfExists(path);
-            fileRepository.delete(entity);
+        List<FileEntity> trashed = fileRepository.findByUserIdAndTrashedTrue(currentUser().getId());
+        for (FileEntity f : trashed) {
+            Files.deleteIfExists(Paths.get(f.getPath()));
+            fileRepository.delete(f);
         }
     }
 
     public List<FileEntity> getTrashedFiles() {
-        return fileRepository.findByTrashedTrue();
+        return fileRepository.findByUserIdAndTrashedTrue(currentUser().getId());
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  SPAM
-    // ════════════════════════════════════════════════════════════════════════
-
-    public FileEntity markAsSpam(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setSpam(true);
-        return fileRepository.save(entity);
+    // ── Spam ──────────────────────────────────────────────────────────────
+    public FileEntity markAsSpam(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setSpam(true);
+        return fileRepository.save(f);
     }
 
-    public FileEntity unmarkSpam(Long id) {
-        FileEntity entity = getFileById(id);
-        entity.setSpam(false);
-        return fileRepository.save(entity);
+    public FileEntity unmarkSpam(Long fileId) {
+        FileEntity f = getFileByIdSecure(fileId);
+        f.setSpam(false);
+        return fileRepository.save(f);
     }
 
     public List<FileEntity> getSpamFiles() {
-        return fileRepository.findBySpamTrue();
+        return fileRepository.findByUserIdAndSpamTrue(currentUser().getId());
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  SHARED WITH ME
-    // ════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Share a file with one or more email addresses.
-     * The caller passes the owner's email so the recipient can see "shared by".
-     */
-    public FileEntity shareFile(Long id, String ownerEmail, List<String> recipientEmails) {
-        FileEntity entity = getFileById(id);
-
-        // Set owner if not already set
-        if (entity.getOwnerEmail() == null) {
-            entity.setOwnerEmail(ownerEmail);
-        }
-
-        // Merge new emails into existing list (avoid duplicates)
-        List<String> existing = entity.getSharedWith() != null
-                ? new ArrayList<>(entity.getSharedWith())
-                : new ArrayList<>();
-        for (String email : recipientEmails) {
-            if (!existing.contains(email)) {
-                existing.add(email);
-            }
-        }
-        entity.setSharedWith(existing);
-        return fileRepository.save(entity);
-    }
-
-    /**
-     * Returns all files shared with a specific email address.
-     * Frontend passes the logged-in user's email.
-     */
-    public List<FileEntity> getFilesSharedWithMe(String email) {
-        return fileRepository.findFilesSharedWithEmail(email);
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    //  SEARCH (header search bar)
-    // ════════════════════════════════════════════════════════════════════════
-
+    // ── Search ────────────────────────────────────────────────────────────
     public List<FileEntity> searchByName(String query) {
         return fileRepository
-                .findByNameContainingIgnoreCaseAndTrashedFalseAndSpamFalse(query);
+                .findByUserIdAndNameContainingIgnoreCaseAndTrashedFalseAndSpamFalse(currentUser().getId(), query);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  STORAGE INFO (sidebar storage bar)
-    // ════════════════════════════════════════════════════════════════════════
-
+    // ── Storage ───────────────────────────────────────────────────────────
     public StorageInfoDTO getStorageInfo() {
-        long used = fileRepository.sumStorageUsed();
+        long used = fileRepository.sumStorageUsedByUser(currentUser().getId());
         return new StorageInfoDTO(used, storageLimitBytes);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  COMMON HELPERS
-    // ════════════════════════════════════════════════════════════════════════
-
-    public FileEntity getFileById(Long id) {
-        return fileRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("File not found: " + id));
-    }
-
-    /** Legacy hard-delete used by the old DELETE /delete/{id} endpoint. */
-    public void deleteById(Long id) {
-        fileRepository.deleteById(id);
+    // ── SECURE file fetch: ensures file belongs to logged-in user ─────────
+    public FileEntity getFileByIdSecure(Long fileId) {
+        Long uid = currentUser().getId();
+        return fileRepository.findByIdAndUserId(fileId, uid)
+                .orElseThrow(() -> new RuntimeException("File not found or access denied"));
     }
 }

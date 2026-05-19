@@ -4,31 +4,24 @@ import com.genie.Drive_BE.entity.FileEntity;
 import com.genie.Drive_BE.services.FileServiceStorage;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
-/**
- * Global search (🔍 in the header).
- *
- *  GET /api/search?q=report   → returns all non-trashed, non-spam files
- *                               whose name contains "report" (case-insensitive)
- */
 @RestController
 @RequestMapping("/api/search")
 @CrossOrigin(origins = "http://localhost:3000")
 public class SearchController {
 
-    private final FileServiceStorage fileServiceStorage;
+    private final FileServiceStorage svc;
 
-    public SearchController(FileServiceStorage fileServiceStorage) {
-        this.fileServiceStorage = fileServiceStorage;
+    public SearchController(FileServiceStorage svc) {
+        this.svc = svc;
     }
 
     @GetMapping
-    public ResponseEntity<List<FileEntity>> search(@RequestParam("q") String query) {
-        if (query == null || query.isBlank()) {
+    public ResponseEntity<List<FileEntity>> search(@RequestParam("q") String q) {
+        if (q == null || q.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(fileServiceStorage.searchByName(query.trim()));
+        return ResponseEntity.ok(svc.searchByName(q.trim()));
     }
 }

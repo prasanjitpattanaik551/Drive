@@ -7,36 +7,36 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface FileRepository extends JpaRepository<FileEntity, Long> {
 
-    // ── My Drive: root-level files that are not trashed or spammed ──────────
-    List<FileEntity> findByParentFolderIdIsNullAndTrashedFalseAndSpamFalse();
+    // ── My Drive root (no parent folder) ─────────────────────────────────
+    List<FileEntity> findByUserIdAndParentFolderIdIsNullAndTrashedFalseAndSpamFalse(Long userId);
 
-    // ── Files inside a specific folder ─────────────────────────────────────
-    List<FileEntity> findByParentFolderIdAndTrashedFalseAndSpamFalse(Long parentFolderId);
+    // ── Files inside a folder ─────────────────────────────────────────────
+    List<FileEntity> findByUserIdAndParentFolderIdAndTrashedFalseAndSpamFalse(Long userId, Long parentFolderId);
 
-    // ── Starred ─────────────────────────────────────────────────────────────
-    List<FileEntity> findByStarredTrueAndTrashedFalseAndSpamFalse();
+    // ── Starred ───────────────────────────────────────────────────────────
+    List<FileEntity> findByUserIdAndStarredTrueAndTrashedFalseAndSpamFalse(Long userId);
 
-    // ── Bin (trashed) ────────────────────────────────────────────────────────
-    List<FileEntity> findByTrashedTrue();
+    // ── Bin ───────────────────────────────────────────────────────────────
+    List<FileEntity> findByUserIdAndTrashedTrue(Long userId);
 
-    // ── Spam ─────────────────────────────────────────────────────────────────
-    List<FileEntity> findBySpamTrue();
+    // ── Spam ──────────────────────────────────────────────────────────────
+    List<FileEntity> findByUserIdAndSpamTrue(Long userId);
 
-    // ── Recent: last 50 opened files ordered by lastOpenedAt ─────────────────
-    List<FileEntity> findTop50ByLastOpenedAtIsNotNullAndTrashedFalseOrderByLastOpenedAtDesc();
+    // ── Recent (last 50 opened) ───────────────────────────────────────────
+    List<FileEntity> findTop50ByUserIdAndLastOpenedAtIsNotNullAndTrashedFalseOrderByLastOpenedAtDesc(Long userId);
 
-    // ── Shared with me: files where the given email is in sharedWith list ────
-    @Query("SELECT f FROM FileEntity f JOIN f.sharedWith s WHERE s = :email AND f.trashed = false AND f.spam = false")
-    List<FileEntity> findFilesSharedWithEmail(@Param("email") String email);
+    // ── Search by name ────────────────────────────────────────────────────
+    List<FileEntity> findByUserIdAndNameContainingIgnoreCaseAndTrashedFalseAndSpamFalse(Long userId, String name);
 
-    // ── Search by name (case-insensitive, excludes trash & spam) ─────────────
-    List<FileEntity> findByNameContainingIgnoreCaseAndTrashedFalseAndSpamFalse(String name);
+    // ── Storage: sum file sizes for this user ─────────────────────────────
+    @Query("SELECT COALESCE(SUM(f.size),0) FROM FileEntity f WHERE f.userId = :userId AND f.trashed = false AND f.type = 'file'")
+    Long sumStorageUsedByUser(@Param("userId") Long userId);
 
-    // ── Storage: sum of all non-trashed file sizes ────────────────────────────
-    @Query("SELECT COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.trashed = false AND f.type = 'file'")
-    Long sumStorageUsed();
+    // ── Secure single-file fetch (must belong to user) ────────────────────
+    Optional<FileEntity> findByIdAndUserId(Long id, Long userId);
 }

@@ -4,40 +4,30 @@ import com.genie.Drive_BE.entity.FileEntity;
 import com.genie.Drive_BE.services.FileServiceStorage;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
-/**
- * Recent section (🕐 in the sidebar).
- *
- *  GET   /api/recent          → list the 50 most recently opened files
- *  PATCH /api/recent/{id}     → manually mark a file as opened (e.g. preview)
- *
- *  Note: downloading via GET /api/files/download/{id} also updates lastOpenedAt.
- */
 @RestController
 @RequestMapping("/api/recent")
 @CrossOrigin(origins = "http://localhost:3000")
 public class RecentController {
 
-    private final FileServiceStorage fileServiceStorage;
+    private final FileServiceStorage svc;
 
-    public RecentController(FileServiceStorage fileServiceStorage) {
-        this.fileServiceStorage = fileServiceStorage;
+    public RecentController(FileServiceStorage svc) {
+        this.svc = svc;
     }
 
     @GetMapping
-    public ResponseEntity<List<FileEntity>> getRecent() {
-        return ResponseEntity.ok(fileServiceStorage.getRecentFiles());
+    public ResponseEntity<List<FileEntity>> list() {
+        return ResponseEntity.ok(svc.getRecentFiles());
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<FileEntity> markOpened(@PathVariable Long id) {
         try {
-            FileEntity updated = fileServiceStorage.markAsOpened(id);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(svc.markAsOpened(id));
         } catch (Exception e) {
-            return ResponseEntity.status(404).build();
+            return ResponseEntity.status(403).build();
         }
     }
 }

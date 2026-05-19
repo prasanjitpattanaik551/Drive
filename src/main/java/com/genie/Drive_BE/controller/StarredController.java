@@ -4,38 +4,30 @@ import com.genie.Drive_BE.entity.FileEntity;
 import com.genie.Drive_BE.services.FileServiceStorage;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
-/**
- * Starred section (☆ in the sidebar).
- *
- *  GET   /api/starred          → list all starred files
- *  PATCH /api/starred/{id}     → toggle star on/off
- */
 @RestController
 @RequestMapping("/api/starred")
 @CrossOrigin(origins = "http://localhost:3000")
 public class StarredController {
 
-    private final FileServiceStorage fileServiceStorage;
+    private final FileServiceStorage svc;
 
-    public StarredController(FileServiceStorage fileServiceStorage) {
-        this.fileServiceStorage = fileServiceStorage;
+    public StarredController(FileServiceStorage svc) {
+        this.svc = svc;
     }
 
     @GetMapping
-    public ResponseEntity<List<FileEntity>> getStarred() {
-        return ResponseEntity.ok(fileServiceStorage.getStarredFiles());
+    public ResponseEntity<List<FileEntity>> list() {
+        return ResponseEntity.ok(svc.getStarredFiles());
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<FileEntity> toggleStar(@PathVariable Long id) {
+    public ResponseEntity<FileEntity> toggle(@PathVariable Long id) {
         try {
-            FileEntity updated = fileServiceStorage.toggleStar(id);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(svc.toggleStar(id));
         } catch (Exception e) {
-            return ResponseEntity.status(404).build();
+            return ResponseEntity.status(403).build();
         }
     }
 }
