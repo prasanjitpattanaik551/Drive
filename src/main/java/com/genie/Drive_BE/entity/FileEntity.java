@@ -31,7 +31,10 @@ public class FileEntity {
     private boolean spam    = false;
 
     // ── Getters & Setters ─────────────────────────────────────────────────
-    public Long   getId()                   { return id; }
+    public Long   getId()
+    {
+        return id;
+    }
     public void   setId(Long id)            { this.id = id; }
 
     public Long   getUserId()               { return userId; }
