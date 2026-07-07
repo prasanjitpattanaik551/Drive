@@ -13,8 +13,8 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:3000")
+                registry.addMapping("/**")
+                        .allowedOrigins("https://drive-frontend-669v-two.vercel.app")
                         .allowedMethods("GET","POST","PUT","PATCH","DELETE","OPTIONS")
                         .allowedHeaders("*")          // allows X-Auth-Token
                         .exposedHeaders("X-Auth-Token")
