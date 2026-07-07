@@ -1,10 +1,10 @@
-# Step 1: Build the application using Maven and Eclipse Temurin Java 17
-FROM maven:3.8.6-eclipse-temurin-17 AS build
+# Step 1: Build the application using Maven and Eclipse Temurin Java 21
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 COPY . .
 RUN mvn clean package -DskipTests
 
-# Step 2: Run the built .jar file using Eclipse Temurin Java 17 Runtime
-FROM eclipse-temurin:17-jre-jammy
+# Step 2: Run the built .jar file using Eclipse Temurin Java 21 Runtime
+FROM eclipse-temurin:21-jre-jammy
 COPY --from=build /target/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]
