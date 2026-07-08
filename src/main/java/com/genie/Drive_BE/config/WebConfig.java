@@ -14,7 +14,7 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins("https://drive-frontend-669v-two.vercel.app")
+                        .allowedOrigins("*")
                         .allowedMethods("GET","POST","PUT","PATCH","DELETE","OPTIONS")
                         .allowedHeaders("*")          // allows X-Auth-Token
                         .exposedHeaders("X-Auth-Token")
