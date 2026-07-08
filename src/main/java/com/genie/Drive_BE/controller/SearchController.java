@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/search")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class SearchController {
 
     private final FileServiceStorage svc;

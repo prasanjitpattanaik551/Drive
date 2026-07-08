@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/bin")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class BinController {
 
     private final FileServiceStorage svc;

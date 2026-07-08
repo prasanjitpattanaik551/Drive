@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/storage")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class StorageController {
 
     private final FileServiceStorage svc;

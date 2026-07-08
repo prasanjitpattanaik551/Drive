@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/recent")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class RecentController {
 
     private final FileServiceStorage svc;

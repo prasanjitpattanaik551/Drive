@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/starred")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class StarredController {
 
     private final FileServiceStorage svc;

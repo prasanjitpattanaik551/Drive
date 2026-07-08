@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/spam")
-@CrossOrigin(origins = "http://localhost:3000")
+
 public class SpamController {
 
     private final FileServiceStorage svc;
